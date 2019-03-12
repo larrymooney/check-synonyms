@@ -1,0 +1,2 @@
+# check-synonyms
+Synonym validation
