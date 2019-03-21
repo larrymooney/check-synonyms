@@ -164,6 +164,7 @@ our $proposed_upd = "";
 our $temp_syn = "";
 our @recip_fnd_array = ();	
 our $recip_lex = "";
+our $recip_sense = "";
 #
 our $i = 0;
 #
@@ -236,7 +237,7 @@ foreach $pri_lex (sort @lexemes)
 				}
 #		
 				push @{$coll_hash{$coll_id_ref}{$pri_lex}}, 
-					"###$pri_syn_sense###$pri_syn_trunc###$ref_exists###$recip_lex###$ref_ambiguous###";			
+					"###$pri_syn_sense###$pri_syn_trunc###$ref_exists###$recip_lex###$ref_ambiguous###$proposed_upd###";			
 			}
 			else
 			{
@@ -253,80 +254,101 @@ foreach $pri_lex (sort @lexemes)
 #	
 					for (my $v=0; $v < scalar @{$file_hash{$ref_lex}}; $v++)
 					{
-						if (${$file_hash{$ref_lex}}[$v] =~ /^(.*?)\s+\d+$/)
+						if (${$file_hash{$ref_lex}}[$v] =~ /^(.*?)\s+(\d+)$/)
 						{
 							$temp_syn = $1;
+							$recip_sense = $2;
 						}
 						else 
 						{
 							$temp_syn = ${$file_hash{$ref_lex}}[$v];
+							$recip_sense = "UNKNOWN";
 						}
 #			
 						if ($pri_lex_trunc eq $temp_syn)
 						{
-							push @recip_fnd_array, $ref_lex;
+							push @recip_fnd_array, "###$ref_lex###$recip_sense###";
 						}
 					}
 				}
 #
-# Flag reciprocity
+# Flag reciprocity and ambiguity 	
 #
-				if (scalar @recip_fnd_array == 0)
-				{
-					$ref_reciprocated = "N";
-					$recip_lex = "NONE";
-				}
-				else
-				{
-					$ref_reciprocated = "Y";
-					($recip_lex) = @recip_fnd_array;
-				}
-#
-# Flag ambiguity	
-#
-				if (scalar @ref_lex_array > 1 && $ref_reciprocated eq "N")	
-				{
-					$ref_ambiguous = "Y";
-				}
-				else
-				{
-					$ref_ambiguous = "N";
-				}
-#				
-# If reference is ambiguous, create unique collection, add to table
-#
-				if ($ref_ambiguous eq "Y")
-				{
-					$coll_id_ref = ++$coll_id_incr;
-					@{$file_hash{$pri_lex}}[0] = $coll_id_ref;
-					$proposed_upd = "NONE";
-#					
-					push @{$coll_hash{$coll_id_ref}{$pri_lex}}, 
-						"###$pri_syn_sense###$pri_syn_trunc###$ref_exists###$recip_lex###$ref_ambiguous###";	
-				}
-# Non-ambiguous reference, update collection IDs in primary & referent				
-				else
-				{
-					if (@{$file_hash{$pri_lex}}[0] > 0)
+# Referents > 1 & Reciprocals > 1: Recip found, Ambiguous, No update
+				if (scalar @ref_lex_array > 1)
+				{	
+					if (scalar @recip_fnd_array > 1)
 					{
-						$coll_id_ref = @{$file_hash{$pri_lex}}[0];
-						@{$file_hash{$ref_lex}}[0] = $coll_id_ref;
+						$ref_reciprocated = "Y"; 
+						$recip_lex = "";
+#						
+						foreach my $recip_row (@recip_fnd_array)
+						{
+							$recip_row =~ /^###(.*)###(.*)###$/g;
+							$recip_lex .= $1." ";	
+						}
+#						
+						$ref_ambiguous = "Y";
+						$proposed_upd = "NONE";						
 					}
-					elsif (@{$file_hash{$ref_lex}}[0] > 0)
+# Referents > 1 & Reciprocals = 1: Recip found, Not ambiguous, Update with reciprocal lexeme					
+					elsif (scalar @recip_fnd_array == 1)
 					{
-						$coll_id_ref = @{$file_hash{$ref_lex}}[0];		
-						@{$file_hash{$pri_lex}}[0] = $coll_id_ref;
+						$ref_reciprocated = "Y";
+						$ref_ambiguous = "N";
+#						
+						($recip_lex, $proposed_upd) = recip_value(\@recip_fnd_array, $synmarker);
 					}
+# Referents > 1 and no Reciprocals: Recip not found, Ambiguous, No update 					
 					else
 					{
-						$coll_id_ref = ++$coll_id_incr;
-						@{$file_hash{$pri_lex}}[0] = $coll_id_ref;		
-						@{$file_hash{$ref_lex}}[0] = $coll_id_ref;
+						$ref_reciprocated = "N";
+						$ref_ambiguous = "Y";
+						$recip_lex = "NONE";
+						$proposed_upd = "NONE";
 					}
-#					
-					push @{$coll_hash{$coll_id_ref}{$pri_lex}}, 
-						"###$pri_syn_sense###$pri_syn_trunc###$ref_exists###$recip_lex###$ref_ambiguous###";	
 				}
+				else
+				{
+# Referents = 1: Not ambiguous				
+					$ref_ambiguous = "N";
+# Reciprocal = 1: Recip found, Update with reciprocal lexeme					
+					if (scalar @recip_fnd_array == 1)
+					{
+						$ref_reciprocated = "Y";
+#					
+						($recip_lex, $proposed_upd) = recip_value(\@recip_fnd_array, $synmarker);						
+					}
+# No Reciprocal: Recip not found, Update with ref lexeme					
+					else
+					{
+						$ref_reciprocated = "N";
+						$recip_lex = $ref_lex_array[0];		
+						$proposed_upd = $synmarker." ".$recip_lex;	
+					}
+				}
+#
+# Non-ambiguous reference, update collection IDs in primary & referent, add to table				
+#				
+				if (@{$file_hash{$pri_lex}}[0] > 0)
+				{
+					$coll_id_ref = @{$file_hash{$pri_lex}}[0];
+					@{$file_hash{$ref_lex}}[0] = $coll_id_ref;
+				}
+				elsif (@{$file_hash{$ref_lex}}[0] > 0)
+				{
+					$coll_id_ref = @{$file_hash{$ref_lex}}[0];		
+					@{$file_hash{$pri_lex}}[0] = $coll_id_ref;
+				}
+				else
+				{
+					$coll_id_ref = ++$coll_id_incr;
+					@{$file_hash{$pri_lex}}[0] = $coll_id_ref;		
+					@{$file_hash{$ref_lex}}[0] = $coll_id_ref;
+				}
+#					
+			push @{$coll_hash{$coll_id_ref}{$pri_lex}}, 
+				"###$pri_syn_sense###$pri_syn_trunc###$ref_exists###$recip_lex###$ref_ambiguous###$proposed_upd###";	
 			}
 		}
 	}
@@ -349,8 +371,8 @@ foreach $coll_id_ref (sort {$a <=> $b} keys %coll_hash)
 	{
 		foreach $row (@{$coll_hash{$coll_id_ref}{$pri_lex}})
 		{
-			$row =~ /^###(.*)###(.*)###(.*)###(.*)###(.*)###$/;
-			print $fhoutfile "$coll_id_ref#$pri_lex#$1#$2#$3#$4#$5\n"; 
+			$row =~ /^###(.*)###(.*)###(.*)###(.*)###(.*)###(.*)###$/;
+			print $fhoutfile "$coll_id_ref#$pri_lex#$1#$2#$3#$4#$5#$6\n"; 
 		}	
 	}
 }
@@ -371,4 +393,28 @@ sub write_to_log{
 
     my ($message) = @_;
 	print $fhlogfile "$message\n";
+}
+#
+#
+#
+sub recip_value 
+{
+	my $rv_fnd_array_ref = shift;
+	my $rv_marker = shift;
+#	
+	${$rv_fnd_array_ref}[0] =~ /^###(.*)###(.*)###$/g;
+	my $rv_lex = $1;
+	my $rv_sense = $2;
+	my $rv_proposed = "";
+#					
+	if ($rv_sense eq "UNKNOWN")
+	{
+		$rv_proposed = $rv_marker." ".$rv_lex;
+	}
+	else
+	{
+		$rv_proposed = $rv_marker." ".$rv_lex." ".$rv_sense;
+	}
+#
+	return ($rv_lex, $rv_proposed);
 }
