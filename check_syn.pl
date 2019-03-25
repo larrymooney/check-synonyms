@@ -157,7 +157,6 @@ our $ref_syn = "";
 our @ref_syn_array = ();
 #
 our $ref_exists = "N";
-our $ref_reciprocated = "";
 our $ref_ambiguous = "";
 our $temp_lex = "";
 our $proposed_upd = "";
@@ -171,7 +170,6 @@ our $i = 0;
 foreach $pri_lex (sort @lexemes) 
 {
 	$ref_exists = "N";
-	$ref_reciprocated = "";
 	$ref_ambiguous = "";
 	$ref_lex = "";
 #	
@@ -221,7 +219,6 @@ foreach $pri_lex (sort @lexemes)
 			if (scalar @ref_lex_array < 1)
 			{
 				$ref_exists = "N";
-				$ref_reciprocated = "N";
 				$ref_ambiguous = "N";
 				$recip_lex = "NONE";
 				$proposed_upd = "NONE";
@@ -279,7 +276,6 @@ foreach $pri_lex (sort @lexemes)
 				{	
 					if (scalar @recip_fnd_array > 1)
 					{
-						$ref_reciprocated = "Y"; 
 						$recip_lex = "";
 #						
 						foreach my $recip_row (@recip_fnd_array)
@@ -294,15 +290,13 @@ foreach $pri_lex (sort @lexemes)
 # Referents > 1 & Reciprocals = 1: Recip found, Not ambiguous, Update with reciprocal lexeme					
 					elsif (scalar @recip_fnd_array == 1)
 					{
-						$ref_reciprocated = "Y";
 						$ref_ambiguous = "N";
-#						
-						($recip_lex, $proposed_upd) = recip_value(\@recip_fnd_array, $synmarker);
+#		
+						($recip_lex, $proposed_upd) = recip_value(\@recip_fnd_array, $synmarker, $pri_syn_trunc);
 					}
 # Referents > 1 and no Reciprocals: Recip not found, Ambiguous, No update 					
 					else
 					{
-						$ref_reciprocated = "N";
 						$ref_ambiguous = "Y";
 						$recip_lex = "NONE";
 						$proposed_upd = "NONE";
@@ -315,16 +309,21 @@ foreach $pri_lex (sort @lexemes)
 # Reciprocal = 1: Recip found, Update with reciprocal lexeme					
 					if (scalar @recip_fnd_array == 1)
 					{
-						$ref_reciprocated = "Y";
-#					
-						($recip_lex, $proposed_upd) = recip_value(\@recip_fnd_array, $synmarker);						
+						($recip_lex, $proposed_upd) = recip_value(\@recip_fnd_array, $synmarker, $pri_syn_trunc);						
 					}
 # No Reciprocal: Recip not found, Update with ref lexeme					
 					else
 					{
-						$ref_reciprocated = "N";
-						$recip_lex = $ref_lex_array[0];		
-						$proposed_upd = $synmarker." ".$recip_lex;	
+						$recip_lex = "NONE";
+#						
+						if ($ref_lex eq $pri_syn_trunc)
+						{
+							$proposed_upd = "NONE";						
+						}
+						else
+						{
+							$proposed_upd = $synmarker." ".$ref_lex;	
+						}
 					}
 				}
 #
@@ -401,6 +400,8 @@ sub recip_value
 {
 	my $rv_fnd_array_ref = shift;
 	my $rv_marker = shift;
+	my $rv_syn = shift;
+	$rv_syn = $rv_marker." ".$rv_syn;
 #	
 	${$rv_fnd_array_ref}[0] =~ /^###(.*)###(.*)###$/g;
 	my $rv_lex = $1;
@@ -414,6 +415,11 @@ sub recip_value
 	else
 	{
 		$rv_proposed = $rv_marker." ".$rv_lex." ".$rv_sense;
+	}
+#
+	if ($rv_syn eq $rv_proposed)
+	{
+		$rv_proposed = "NONE";
 	}
 #
 	return ($rv_lex, $rv_proposed);
